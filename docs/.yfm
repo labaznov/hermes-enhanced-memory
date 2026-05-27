@@ -1,0 +1,6 @@
+allowHtml: true
+breaks: true
+outputFormat: html
+linkify: true
+sanitizeHtml: false
+langs: ['en']

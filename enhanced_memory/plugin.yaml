@@ -1,0 +1,7 @@
+name: enhanced-memory
+version: 1.0.0
+description: "Enhanced Memory — two-tier fact store with condensation, FTS5, and optional Gemini-powered semantic vector search (sqlite-vec)."
+hooks:
+  - on_session_end
+  - on_memory_write
+  - on_pre_compress

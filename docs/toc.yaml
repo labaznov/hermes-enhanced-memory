@@ -1,0 +1,17 @@
+title: Enhanced Memory Plugin
+href: index.md
+items:
+  - name: Overview
+    href: index.md
+  - name: Getting Started
+    href: getting-started.md
+  - name: Architecture
+    href: architecture.md
+  - name: Configuration
+    href: configuration.md
+  - name: API Reference
+    href: api-reference.md
+  - name: Embedding Providers
+    href: embedding-providers.md
+  - name: Comparison with Alternatives
+    href: comparison.md
