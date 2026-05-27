@@ -145,13 +145,13 @@ One entry per category that has facts. Skip categories with no facts.
 ## Example
 
 INPUT:
-{"security": {"facts": ["SSH только по ключам", "UFW active, 22/tcp", "fail2ban 24h", "IPv6 off", "kernel hardening on", "SSH только по ключам, пароли off"], "existing_summary": null},
-"user_pref": {"facts": ["Dmitriy Labaznov — IT-специалист", "Билингвально RU/EN", "Без навязанной персоны", "Минимальные изменения"], "existing_summary": null}}
+{"security": {"facts": ["SSH key-only auth", "UFW active, 22/tcp", "fail2ban 24h ban", "IPv6 disabled", "kernel hardening on", "SSH passwords disabled"], "existing_summary": null},
+"user_pref": {"facts": ["Alex — software engineer", "Prefers dark mode in all tools", "Communication style: concise, no fluff", "Uses metric system"], "existing_summary": null}}
 
 OUTPUT:
 {"results": [
-  {"topic": "Server Hardening", "category": "security", "summary": "Сервер захарден: SSH только ключи (пароли off), UFW active (22/tcp), fail2ban 24h, kernel hardening, IPv6 off.", "priority": 10},
-  {"topic": "User Identity & Style", "category": "user_pref", "summary": "Дмитрий (Dmitriy Labaznov) — IT-специалист. Билингвально RU/EN. Минимальные изменения, без навязанной персоны.", "priority": 9}
+  {"topic": "Server Hardening", "category": "security", "summary": "SSH key-only (passwords off), UFW active (22/tcp), fail2ban 24h, kernel hardening, IPv6 off.", "priority": 10},
+  {"topic": "User Identity & Style", "category": "user_pref", "summary": "Alex — software engineer. Concise communication, no fluff. Dark mode preferred. Metric system.", "priority": 9}
 ]}"""
 
 CONDENSATION_USER_TEMPLATE = """\
