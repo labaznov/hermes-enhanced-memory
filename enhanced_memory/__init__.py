@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional
 
@@ -337,32 +338,121 @@ class EnhancedMemoryProvider(MemoryProvider):
     def _build_condenser_llm_config(self) -> Optional[Dict[str, Any]]:
         """Build LLM configuration dict for FactCondenser from plugin config.
 
-        Reads ``condenser_model``, ``condenser_provider``, ``condenser_api_key``,
-        and ``condenser_base_url`` from the plugin config.  Returns None if
-        no explicit config is set (FactCondenser will auto-detect from env).
+        Priority order:
+        1. Explicit ``condenser_*`` keys in plugin config
+        2. Hermes main model config (same provider the agent itself uses)
+        3. Auto-detect from environment variables (GOOGLE_API_KEY, OPENAI_API_KEY)
 
         Returns:
-            dict | None: LLM config dict, or None for auto-detection.
+            dict | None: LLM config dict, or None for env-only auto-detection.
         """
+        # Priority 1: explicit plugin condenser config
         model = self._config.get("condenser_model", "")
-        if not model or model == "(auto)":
-            return None  # Let FactCondenser auto-detect
+        if model and model != "(auto)":
+            config: Dict[str, Any] = {"model": model}
+            provider = self._config.get("condenser_provider", "")
+            if provider and provider != "(auto)":
+                config["provider"] = provider
+            api_key = self._config.get("condenser_api_key", "")
+            if api_key:
+                config["api_key"] = api_key
+            base_url = self._config.get("condenser_base_url", "")
+            if base_url:
+                config["base_url"] = base_url
+            return config
 
-        config: Dict[str, Any] = {"model": model}
+        # Priority 2: inherit from Hermes main model config
+        hermes_config = self._read_hermes_model_config()
+        if hermes_config:
+            return hermes_config
 
-        provider = self._config.get("condenser_provider", "")
-        if provider and provider != "(auto)":
-            config["provider"] = provider
+        # Priority 3: return None — FactCondenser will auto-detect from env
+        return None
 
-        api_key = self._config.get("condenser_api_key", "")
-        if api_key:
-            config["api_key"] = api_key
+    @staticmethod
+    def _read_hermes_model_config() -> Optional[Dict[str, Any]]:
+        """Read the main Hermes model configuration from config.yaml.
 
-        base_url = self._config.get("condenser_base_url", "")
-        if base_url:
-            config["base_url"] = base_url
+        Uses the same provider/API key as the agent itself, but prefers
+        a lighter model for condensation (sonnet/haiku/mini over opus/large).
+        Falls back to the main model if no lighter alternative is found.
 
-        return config
+        Returns:
+            dict | None: Config dict with ``model``, ``api_key``, ``base_url``
+            and ``provider`` keys, or None if config cannot be read.
+        """
+        try:
+            import yaml
+            from pathlib import Path
+
+            # Try standard Hermes config locations
+            config_path = None
+            for candidate in [
+                os.environ.get("HERMES_HOME", ""),
+                str(Path.home() / ".hermes"),
+            ]:
+                if candidate:
+                    p = os.path.join(candidate, "config.yaml")
+                    if os.path.exists(p):
+                        config_path = p
+                        break
+
+            if not config_path:
+                return None
+
+            with open(config_path, "r") as f:
+                cfg = yaml.safe_load(f) or {}
+
+            model_cfg = cfg.get("model", {})
+            if not model_cfg:
+                return None
+
+            main_model = model_cfg.get("default", "")
+            api_key = model_cfg.get("api_key", "")
+            base_url = model_cfg.get("base_url", "")
+
+            if not main_model or not api_key:
+                return None
+
+            # Try to find a lighter model from fallback_providers
+            # (sonnet/haiku/mini are better for condensation than opus/large)
+            condenser_model = main_model
+            _LIGHT_PATTERNS = ("sonnet", "haiku", "mini", "flash", "small")
+
+            # Check if main model is already light
+            main_lower = main_model.lower()
+            is_main_light = any(p in main_lower for p in _LIGHT_PATTERNS)
+
+            if not is_main_light:
+                # Look for a lighter model in fallback_providers
+                fallbacks = cfg.get("fallback_providers", [])
+                for fb in fallbacks:
+                    fb_model = fb.get("model", "")
+                    if any(p in fb_model.lower() for p in _LIGHT_PATTERNS):
+                        condenser_model = fb_model
+                        logger.info(
+                            "Condenser using lighter model %s instead of %s",
+                            condenser_model, main_model,
+                        )
+                        break
+
+            result: Dict[str, Any] = {
+                "model": condenser_model,
+                "api_key": api_key,
+                "provider": "openai",  # OpenAI-compatible API
+            }
+            if base_url:
+                result["base_url"] = base_url
+
+            logger.info(
+                "Condenser LLM: model=%s, base_url=%s",
+                condenser_model, base_url or "(default)",
+            )
+            return result
+
+        except Exception:
+            logger.debug("Could not read Hermes model config, will auto-detect.")
+            return None
 
     def _init_semantic(self, db_path: str) -> None:
         """Try to initialise semantic vector search; fail gracefully.
