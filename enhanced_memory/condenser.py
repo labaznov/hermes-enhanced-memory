@@ -249,7 +249,7 @@ def _merge_source_ids(existing: list[int] | str | None, new_ids: list[int]) -> s
 class _LLMClient:
     """Lightweight LLM client for condensation calls.
 
-    Supports OpenAI-compatible APIs (tokenator.top, OpenAI, etc.)
+    Supports OpenAI-compatible APIs (vLLM, Ollama, LiteLLM, etc.)
     and Google Gemini via google-generativeai SDK.
 
     Auto-detects configuration from:
