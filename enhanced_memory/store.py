@@ -171,10 +171,10 @@ END;
 """,
     """\
 CREATE TRIGGER IF NOT EXISTS raw_facts_au AFTER UPDATE ON raw_facts BEGIN
-    INSERT INTO raw_facts_fts(raw_facts_fts, rowid, content, category, source)
-    VALUES ('delete', old.id, old.content, old.category, old.source);
-    INSERT INTO raw_facts_fts(rowid, content, category, source)
-    VALUES (new.id, new.content, new.category, new.source);
+    INSERT INTO raw_facts_fts(raw_facts_fts, rowid, content, category)
+    VALUES ('delete', old.id, old.content, old.category);
+    INSERT INTO raw_facts_fts(rowid, content, category)
+    VALUES (new.id, new.content, new.category);
 END;
 """,
 ]

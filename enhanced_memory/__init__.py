@@ -259,6 +259,14 @@ class EnhancedMemoryProvider(MemoryProvider):
              "default": "(auto)"},
             {"key": "embedding_device", "description": "Device for local models: cpu, cuda, mps",
              "default": "cpu", "choices": ["cpu", "cuda", "mps"]},
+            {"key": "condenser_model", "description": "LLM model for condensation (e.g. gemini-2.5-flash, claude-haiku). Empty = auto-detect",
+             "default": "(auto)"},
+            {"key": "condenser_provider", "description": "LLM provider for condensation: google, openai, or custom base_url",
+             "default": "(auto)"},
+            {"key": "condenser_api_key", "description": "API key for condenser LLM (auto-detected from env if empty)",
+             "default": ""},
+            {"key": "condenser_base_url", "description": "Base URL for OpenAI-compatible condenser API",
+             "default": ""},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:
@@ -313,7 +321,10 @@ class EnhancedMemoryProvider(MemoryProvider):
             db_path = db_path.replace("${HERMES_HOME}", _hermes_home)
 
         self._store = EnhancedMemoryStore(db_path=db_path)
-        self._condenser = FactCondenser(self._store)
+
+        # Build LLM config for condenser from plugin config
+        llm_config = self._build_condenser_llm_config()
+        self._condenser = FactCondenser(self._store, llm_config=llm_config)
         self._session_id = session_id
         self._session_turns = 0
 
@@ -322,6 +333,36 @@ class EnhancedMemoryProvider(MemoryProvider):
             self._init_semantic(db_path)
 
         logger.info("Enhanced memory initialized: %s", db_path)
+
+    def _build_condenser_llm_config(self) -> Optional[Dict[str, Any]]:
+        """Build LLM configuration dict for FactCondenser from plugin config.
+
+        Reads ``condenser_model``, ``condenser_provider``, ``condenser_api_key``,
+        and ``condenser_base_url`` from the plugin config.  Returns None if
+        no explicit config is set (FactCondenser will auto-detect from env).
+
+        Returns:
+            dict | None: LLM config dict, or None for auto-detection.
+        """
+        model = self._config.get("condenser_model", "")
+        if not model or model == "(auto)":
+            return None  # Let FactCondenser auto-detect
+
+        config: Dict[str, Any] = {"model": model}
+
+        provider = self._config.get("condenser_provider", "")
+        if provider and provider != "(auto)":
+            config["provider"] = provider
+
+        api_key = self._config.get("condenser_api_key", "")
+        if api_key:
+            config["api_key"] = api_key
+
+        base_url = self._config.get("condenser_base_url", "")
+        if base_url:
+            config["base_url"] = base_url
+
+        return config
 
     def _init_semantic(self, db_path: str) -> None:
         """Try to initialise semantic vector search; fail gracefully.
@@ -703,11 +744,14 @@ class EnhancedMemoryProvider(MemoryProvider):
                         {"topic": e["topic"], "category": e["category"],
                          "priority": e["priority"],
                          "fact_count": len(e.get("source_ids", [])),
-                         "action": e.get("action", "unknown")}
+                         "action": e.get("action", "unknown"),
+                         "method": e.get("method", "unknown")}
                         for e in entries
                     ],
                     "count": len(entries),
                     "dry_run": dry_run,
+                    "llm_available": self._condenser.llm_available,
+                    "llm_model": self._condenser.llm_model,
                 })
 
             elif action == "list_condensed":
